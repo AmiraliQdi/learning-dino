@@ -61,16 +61,29 @@ class Environment:
 
 
 def rl_agent(state):
-    actions = ['duck','jump','none']
+    actions = ['none']
     action = random.choice(actions)
     return action
 
 
-env = Environment(0.1)
+def if_game_over(last_frame, frame):
+    if last_frame is None:
+        return False
+    for i in range(frame.shape[0]):
+        for j in range(frame.shape[1]):
+            if frame[i][j] != last_frame[i][j]:
+                return False
+    return True
+
+
+fps = 20
+time_per_each_frame = 1 / fps
+env = Environment(time_per_each_frame)
 env.create_session()
 max_frame_stack = 4
 frames = deque(maxlen=max_frame_stack)
 state_counter = 0
+last_frame = None
 
 try:
     is_new_episode = True
@@ -83,10 +96,14 @@ try:
 
         frame = env.get_state()
 
-        frames, stacked_state = stack_frames(frames, frame, is_new_episode)
-        print(frames.shape)
+        if if_game_over(last_frame, frame):
+            print("GAME OVER")
 
-        action = rl_agent(state_counter)
+        last_frame = frame
+
+        frames, stacked_state = stack_frames(frames, frame, is_new_episode)
+
+        action = rl_agent(stacked_state)
         state_counter += 1
 
         env.apply_action(action)
