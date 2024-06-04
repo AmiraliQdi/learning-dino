@@ -13,7 +13,8 @@ import io
 import numpy as np
 from PIL import Image
 
-from state_preprocessing import preprocess_state, stack_frames
+from agent import Agent
+from state_preprocessing import preprocess_state, stack_frames, extract_features
 
 
 class Environment:
@@ -66,7 +67,7 @@ def rl_agent(state):
     return action
 
 
-def if_game_over(last_frame, frame):
+def is_game_over(last_frame, frame):
     if last_frame is None:
         return False
     for i in range(frame.shape[0]):
@@ -76,38 +77,40 @@ def if_game_over(last_frame, frame):
     return True
 
 
-fps = 20
+fps = 200
 time_per_each_frame = 1 / fps
 env = Environment(time_per_each_frame)
 env.create_session()
 max_frame_stack = 4
-frames = deque(maxlen=max_frame_stack)
-state_counter = 0
+frames_stack = []
 last_frame = None
+agent = Agent(1, 3)
+min_eps = 0.05
+n_episodes = 1000
 
-try:
-    is_new_episode = True
-    while True:
+for episode in range(n_episodes):
 
-        if state_counter % max_frame_stack == 0:
-            is_new_episode = True
-        else:
-            is_new_episode = False
+    env.apply_action('jump')
+    done = False
+    reward = 0.1
+    state_counter = 0
 
+    while not done:
         frame = env.get_state()
-
-        if if_game_over(last_frame, frame):
-            print("GAME OVER")
-
-        last_frame = frame
-
-        frames, stacked_state = stack_frames(frames, frame, is_new_episode)
-
-        action = rl_agent(stacked_state)
+        features = extract_features(frame)
+        #print(f'dist={features[0]}')
+        action = agent.epsilon_greedy_action(features)
+        env.apply_action(['jump', 'duck', 'none'][action])
+        next_frame = env.get_state()
+        next_features = extract_features(next_frame)
+        if is_game_over(frame, next_frame):
+            reward = -5
+            done = True
+            time.sleep(1)
+        agent.update_q_function(features, action, reward, next_features)
         state_counter += 1
 
-        env.apply_action(action)
+    if agent.epsilon > min_eps:
+        agent.epsilon -= 0.05
 
-
-except KeyboardInterrupt:
-    env.session.quit()
+    print(f"Episode: {episode}, eps={agent.epsilon} , counts={state_counter}, theta={agent.theta}")
